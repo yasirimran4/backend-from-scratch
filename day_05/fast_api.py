@@ -1,114 +1,384 @@
-from fastapi import FastAPI, HTTPException
-import logging
-from uuid import UUID, uuid4
+from fastapi import FastAPI, HTTPException, Body
 
 app = FastAPI()
 
+# =========================================================
+# Fake Databases
+# =========================================================
+
+products = [
+    {"id": 1, "name": "Laptop", "category": "electronics"},
+    {"id": 2, "name": "Phone", "category": "electronics"},
+    {"id": 3, "name": "Shoes", "category": "fashion"},
+]
+
 users = [
-    {"id": 1, "name": "Yasir", "is_active": True},
-    {"id": 2, "name": "Esam", "is_active": False},
-    {"id": 3, "name": "Sumama", "is_active": True},
+    {"id": 1, "name": "Yasir", "active": True},
+    {"id": 2, "name": "Esam", "active": False},
+    {"id": 3, "name": "Sumama", "active": True},
+]
+
+posts = [
+    {"id": 1, "title": "FastAPI Intro", "user_id": 1},
+    {"id": 2, "title": "Python Basics", "user_id": 1},
+    {"id": 3, "title": "AI Future", "user_id": 2},
+]
+
+movies = [
+    {"id": 1, "name": "Interstellar"},
+    {"id": 2, "name": "Inception"},
+]
+
+comments = [
+    {"id": 1, "post_id": 1, "text": "Amazing"},
+    {"id": 2, "post_id": 1, "text": "Very helpful"},
 ]
 
 
-# Simple get API
-# @app.get("/users")
-# def get_users():
-#     if len(users) < 1:
-#         raise HTTPException(status_code=404, detail="No user found")
-#     return {"users": users}
+# =========================================================
+# 1. Basic GET API
+# =========================================================
+
+@app.get("/products")
+def get_products():
+    return products
 
 
-# Dynamic Route
-@app.get("/users/{user_id}")
-def get_user(user_id: int):
-    user = next((u for u in users if u["id"] == user_id), None)
+# =========================================================
+# 2. Path Parameter API
+# =========================================================
 
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+@app.get("/products/{product_id}")
+def get_product(product_id: int):
 
-    return {"user": user}
+    for product in products:
+        if product["id"] == product_id:
+            return product
 
-
-# Multiple path parameter
-@app.get("/add/{num_1}/{num_2}")
-def add(num_1: int, num_2: int):
-    return num_1 + num_2
-
-
-# Query paramters
+    raise HTTPException(
+        status_code=404,
+        detail="Product not found"
+    )
 
 
-# @app.get("/users")
-# def filter_user(name: str):
-#     user = next(
-#         (u for u in users if u["name"].lower().strip() == name.lower().strip()), None
-#     )
+# =========================================================
+# 3. Multiple Path Parameters
+# =========================================================
 
-#     if user:
-#         return user
+@app.get("/add/{num1}/{num2}")
+def add_numbers(num1: int, num2: int):
 
-#     raise HTTPException(status_code=404, detail="User not found")
-
-
-# Pagination Api
+    return {
+        "result": num1 + num2
+    }
 
 
-@app.get("/users/{page_no}/{limit}")
-def pagination_check(page_no: int = 1, limit: int = 10):
-    return page_no, limit
+# =========================================================
+# 4. Query Parameter API
+# =========================================================
 
+@app.get("/users/search")
+def search_user(name: str):
 
-# Filter by is_active
-
-
-@app.get("/users")
-def filter_user(is_active: bool):
-    filter_users = [u for u in users if u["is_active"] == is_active]
-
-    if filter_users:
-        return filter_users
-
-    raise HTTPException(status_code=404, detail="No user found")
-
-
-# Create User
-
-
-@app.post("/users")
-def create_user(id: int, name: str, is_active: bool = True):
-
-    user = next((u for u in users if u["id"] == id), None)
-
-    if user:
-        raise HTTPException(status_code=400, detail="User already exist with this id")
-
-    user = {"id": id, "name": name, "is_active": is_active}
-    users.append(user)
-    return user
-
-
-# Update name
-
-
-@app.put("/users")
-def update_user(name: str, user_id: int):
     for user in users:
-        if user["id"] == user_id:
-            user["name"] = name
+        if user["name"].lower() == name.lower():
             return user
 
-    # In case if user not updated
-    raise HTTPException(status_code=400, detail="User does not exist with this id")
+    raise HTTPException(
+        status_code=404,
+        detail="User not found"
+    )
 
 
-@app.delete("/users")
+# =========================================================
+# 5. Multiple Query Parameters
+# =========================================================
+
+@app.get("/posts")
+def get_posts(limit: int = 10, page: int = 1):
+
+    return {
+        "limit": limit,
+        "page": page,
+        "posts": posts
+    }
+
+
+# =========================================================
+# 6. Optional Query Parameters
+# =========================================================
+
+@app.get("/filter-products")
+def filter_products(category: str = None):
+
+    if category:
+        filtered = [
+            product
+            for product in products
+            if product["category"] == category
+        ]
+
+        return filtered
+
+    return products
+
+
+# =========================================================
+# 7. Boolean Query Parameter
+# =========================================================
+
+@app.get("/active-users")
+def get_active_users(is_active: bool):
+
+    filtered = [
+        user
+        for user in users
+        if user["active"] == is_active
+    ]
+
+    return filtered
+
+
+# =========================================================
+# 8. Mixed Path + Query Params
+# =========================================================
+
+@app.get("/users/{user_id}/posts")
+def get_user_posts(user_id: int, limit: int = 5):
+
+    user_posts = [
+        post
+        for post in posts
+        if post["user_id"] == user_id
+    ]
+
+    return user_posts[:limit]
+
+
+# =========================================================
+# 9. POST API
+# =========================================================
+
+@app.post("/users")
+def create_user(data = Body()):
+
+    new_user = {
+        "id": len(users) + 1,
+        "name": data["name"],
+        "active": True
+    }
+
+    users.append(new_user)
+
+    return {
+        "message": "User created",
+        "user": new_user
+    }
+
+
+# =========================================================
+# 10. PUT API
+# =========================================================
+
+@app.put("/users/{user_id}")
+def update_user(user_id: int, data = Body()):
+
+    for user in users:
+
+        if user["id"] == user_id:
+
+            user["name"] = data["name"]
+
+            return {
+                "message": "User updated",
+                "user": user
+            }
+
+    raise HTTPException(
+        status_code=404,
+        detail="User not found"
+    )
+
+
+# =========================================================
+# 11. DELETE API
+# =========================================================
+
+@app.delete("/users/{user_id}")
 def delete_user(user_id: int):
 
     for user in users:
-        if user["id"] == user_id:
-            users.remove(user)
-            return user
 
-    # In case if user not deleted
-    raise HTTPException(status_code=400, detail="User does not exist with this id")
+        if user["id"] == user_id:
+
+            users.remove(user)
+
+            return {
+                "message": "User deleted"
+            }
+
+    raise HTTPException(
+        status_code=404,
+        detail="User not found"
+    )
+
+
+# =========================================================
+# 12. Sort Products API
+# =========================================================
+
+@app.get("/sorted-products")
+def sorted_products(sort: str = "asc"):
+
+    sorted_list = sorted(
+        products,
+        key=lambda product: product["name"]
+    )
+
+    if sort == "desc":
+        sorted_list.reverse()
+
+    return sorted_list
+
+
+# =========================================================
+# 13. Login API
+# =========================================================
+
+@app.post("/login")
+def login(data = Body()):
+
+    username = data["username"]
+    password = data["password"]
+
+    if username == "yasir" and password == "123":
+
+        return {
+            "message": "Login successful"
+        }
+
+    raise HTTPException(
+        status_code=401,
+        detail="Invalid credentials"
+    )
+
+
+# =========================================================
+# 14. Chatbot API
+# =========================================================
+
+@app.post("/chat")
+def chatbot(data = Body()):
+
+    user_message = data["message"]
+
+    return {
+        "user": user_message,
+        "assistant": f"AI says: You said '{user_message}'"
+    }
+
+
+# =========================================================
+# 15. Nested Route Practice
+# =========================================================
+
+@app.get("/posts/{post_id}/comments")
+def get_comments(post_id: int):
+
+    post_comments = [
+        comment
+        for comment in comments
+        if comment["post_id"] == post_id
+    ]
+
+    return post_comments
+
+
+# =========================================================
+# MOVIES CHALLENGE SOLUTIONS
+# =========================================================
+
+# Get all movies
+@app.get("/movies")
+def get_movies():
+    return movies
+
+
+# Get single movie
+@app.get("/movies/{movie_id}")
+def get_movie(movie_id: int):
+
+    for movie in movies:
+        if movie["id"] == movie_id:
+            return movie
+
+    raise HTTPException(
+        status_code=404,
+        detail="Movie not found"
+    )
+
+
+# Create movie
+@app.post("/movies")
+def create_movie(data = Body()):
+
+    movie = {
+        "id": len(movies) + 1,
+        "name": data["name"]
+    }
+
+    movies.append(movie)
+
+    return {
+        "message": "Movie created",
+        "movie": movie
+    }
+
+
+# Delete movie
+@app.delete("/movies/{movie_id}")
+def delete_movie(movie_id: int):
+
+    for movie in movies:
+
+        if movie["id"] == movie_id:
+
+            movies.remove(movie)
+
+            return {
+                "message": "Movie deleted"
+            }
+
+    raise HTTPException(
+        status_code=404,
+        detail="Movie not found"
+    )
+
+
+# Search movie
+@app.get("/movies/search")
+def search_movie(name: str):
+
+    for movie in movies:
+
+        if movie["name"].lower() == name.lower():
+            return movie
+
+    raise HTTPException(
+        status_code=404,
+        detail="Movie not found"
+    )
+
+
+# Student courses
+@app.get("/students/{student_id}/courses")
+def student_courses(student_id: int):
+
+    return {
+        "student_id": student_id,
+        "courses": [
+            "Python",
+            "FastAPI",
+            "Databases"
+        ]
+    }
