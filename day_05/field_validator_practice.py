@@ -2,6 +2,7 @@ from pydantic import (
     BaseModel,
     Field,
     EmailStr,
+    field_validator,
     AnyUrl,
 )
 from fastapi import FastAPI
@@ -35,6 +36,23 @@ class Patient(BaseModel):
     allergies: Annotated[Optional[List[str]], Field(default=None)]
     contact: Dict[str, str]
 
+    @field_validator("email")
+    @classmethod
+    def check_patient_email(cls, value):
+        valid_domains = ["cili.com", "apex.com"]
+
+        domain = value.split("@")[-1]
+
+        if domain not in valid_domains:
+            raise ValueError("Not a valid domain")
+
+        return value
+
+    @field_validator("name")
+    @classmethod
+    def capiltalize_name(cls, value):
+        return value.capitalize()
+
 
 app = FastAPI()
 
@@ -48,7 +66,7 @@ patient = {
     "name": "yasi imran",
     "age": 12,
     "weight": 44.9,
-    "email": "yasirdev@gmail.com",
+    "email": "yasirdev@cili.com",
     "linkedin_url": "https://linkedin.com",
     "contact": {"email": "yasirimran.com", "phone": "56789"},
 }
